@@ -1,0 +1,21 @@
+# 智能代码审查 Agent 系统依赖
+# 基础依赖
+asyncio>=3.4.3
+
+# 可选：用于实际 LLM 调用
+# openai>=1.0.0
+# anthropic>=0.8.0
+
+# 可选：代码解析
+# tree-sitter>=0.20.0
+# tree-sitter-python>=0.20.0
+
+# 可选：Web 界面
+# streamlit>=1.28.0
+# gradio>=4.0.0
+
+# 开发依赖
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0

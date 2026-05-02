@@ -1,0 +1,81 @@
+name: Code Review Agent
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run Code Review Agent
+      run: |
+        python -c "
+import asyncio
+import json
+import os
+from main import CodeReviewOrchestrator
+
+async def review_all():
+    orchestrator = CodeReviewOrchestrator()
+    all_results = []
+
+    for root, dirs, files in os.walk('.'):
+        # 排除特定目录
+        dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'venv', 'env']]
+
+        for file in files:
+            if file.endswith('.py'):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    result = await orchestrator.review_code(file_path, content)
+                    all_results.append(result)
+
+                    # 输出严重问题
+                    if result['status'] == 'completed':
+                        critical = result['summary']['severity_distribution'].get('critical', 0)
+                        if critical > 0:
+                            print(f'::error:: {file_path}: 发现 {critical} 个严重漏洞')
+                except Exception as e:
+                    print(f'::warning:: 无法审查 {file_path}: {e}')
+
+    # 保存完整报告
+    with open('review_report.json', 'w', encoding='utf-8') as f:
+        json.dump(all_results, f, ensure_ascii=False, indent=2)
+
+    # 检查是否有严重问题
+    total_critical = sum(
+        r['summary']['severity_distribution'].get('critical', 0) 
+        for r in all_results 
+        if r['status'] == 'completed'
+    )
+
+    if total_critical > 0:
+        raise Exception(f'发现 {total_critical} 个严重安全漏洞，请修复后重试')
+
+asyncio.run(review_all())
+        "
+
+    - name: Upload Review Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-review-report
+        path: review_report.json
